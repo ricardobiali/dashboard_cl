@@ -1,0 +1,41 @@
+body {
+    background-color: #f8f9fa;
+}
+
+.card {
+    border-radius: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.chart-container {
+    position: relative;
+    height: 400px;
+}
+
+table {
+    font-size: 0.9rem;
+}
+
+h2 {
+    font-weight: 600;
+    color: #333;
+}
+
+.card-title {
+    font-weight: 500;
+    color: #444;
+    margin-bottom: 1rem;
+}
+
+.table thead th {
+    white-space: nowrap;
+}
+
+.table td, .table th {
+    vertical-align: middle;
+}
+
+.alert {
+    max-width: 600px;
+    margin: 100px auto;
+}
