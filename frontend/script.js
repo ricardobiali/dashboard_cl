@@ -8,6 +8,12 @@ try {
         return;
     }
 
+    // Função auxiliar para converter "1.234,56" -> 1234.56
+    const parseNumber = (valor) => {
+        if (typeof valor !== "string") return 0;
+        return parseFloat(valor.replace(/\./g, "").replace(",", "."));
+    };
+
     // Pega as chaves do primeiro objeto
     const colunas = Object.keys(dados[0]);
 
@@ -21,8 +27,12 @@ try {
     ).join('');
 
     // Dados para os gráficos
-    const projetos = dados.map(d => d["Def.projeto"]);
-    const valoresTotais = dados.map(d => d["Valor total em reais"]);
+    const projetos = dados.map((d) => d["Def.projeto"]);
+    const valoresTotais = dados.map((d) =>
+        parseNumber(d["Valor total em reais"])
+    );
+    const valSuj = dados.map((d) => parseNumber(d["Val suj cont loc R$"]));
+    const valCont = dados.map((d) => parseNumber(d["Valor cont local R$"]));
 
     // Paleta de cores
     const cores = projetos.map((_, i) =>
@@ -63,31 +73,40 @@ try {
     });
 
     // Gráfico de Pizza
-    new Chart(document.getElementById('chartPizza'), {
-        type: 'pie',
+    const totalValSuj = valSuj.reduce((a, b) => a + b, 0);
+    const totalValCont = valCont.reduce((a, b) => a + b, 0);
+    
+    new Chart(document.getElementById("chartPizza"), {
+        type: "pie",
         data: {
-        labels: projetos,
-        datasets: [{
-            data: valoresTotais,
-            backgroundColor: cores
-        }]
+        labels: ["Val suj cont loc R$", "Valor cont local R$"],
+        datasets: [
+            {
+            data: [totalValSuj, totalValCont],
+            backgroundColor: ["#36A2EB", "#FF6384"],
+            },
+        ],
         },
         options: {
         responsive: true,
         plugins: {
-            legend: { position: 'bottom' },
+            legend: { position: "bottom" },
             tooltip: {
             callbacks: {
-                label: ctx => `${ctx.label}: ${ctx.raw.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
-            }
-            }
-        }
-        }
+                label: (ctx) =>
+                `${ctx.label}: ${ctx.raw.toLocaleString("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                })}`,
+            },
+            },
+        },
+        },
     });
-
     } catch (error) {
-        console.error("Erro ao carregar JSON:", error);
-        document.body.innerHTML = '<div class="alert alert-danger text-center mt-5">Erro ao carregar os dados.</div>';
+    console.error("Erro ao carregar JSON:", error);
+    document.body.innerHTML =
+        '<div class="alert alert-danger text-center mt-5">Erro ao carregar os dados.</div>';
     }
 }
 

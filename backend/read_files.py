@@ -13,11 +13,10 @@ CAMINHO_JSON = os.path.join(DASHBOARD_DIR, "requests.json")
 # Colunas de interesse
 coluna_chave = "Def.projeto"
 colunas_valores = [
-    "Valor/Moeda obj",
     "Valor total em reais",
     "Val suj cont loc R$",
     "Valor cont local R$",
-    "Valor/moeda ACC"
+    "Estrangeiro $"
 ]
 
 dfs = []
@@ -36,7 +35,7 @@ for arquivo in glob.glob(os.path.join(BASE_DIR, "*.txt")):
         # Garante que a coluna-chave e colunas numéricas existam
         colunas_existentes = [c for c in colunas_valores if c in df.columns]
         if coluna_chave not in df.columns:
-            print(f"⚠️ Coluna '{coluna_chave}' não encontrada em {arquivo}")
+            print(f" Coluna '{coluna_chave}' não encontrada em {arquivo}")
             continue
 
         # Função de limpeza de valores
@@ -72,6 +71,24 @@ else:
 
     # Agrupa e soma
     resultado = df_total.groupby(coluna_chave, as_index=False)[colunas_valores].sum()
+
+    # Calcula a nova coluna — razão entre valores locais
+    if "Valor cont local R$" in resultado.columns and "Val suj cont loc R$" in resultado.columns:
+        resultado["% CL"] = resultado.apply(
+            lambda row: row["Valor cont local R$"] / row["Val suj cont loc R$"]
+            if row["Val suj cont loc R$"] != 0 else 0,
+            axis=1
+        )
+    else:
+        print(" Colunas para cálculo da razão não encontradas.")
+
+    # Formatação numérica no padrão PT-BR
+    def formatar_brasileiro(x):
+        if isinstance(x, (int, float)):
+            return f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return x
+
+    resultado = resultado.applymap(formatar_brasileiro)
 
     # Exporta para JSON
     resultado.to_json(CAMINHO_JSON, orient="records", force_ascii=False, indent=2)
