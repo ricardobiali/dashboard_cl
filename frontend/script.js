@@ -1,7 +1,6 @@
 async function carregarDados() {
 try {
-    const response = await fetch('../requests.json');
-    const dados = await response.json();
+    const dados = await eel.carregar_dados()();
 
     if (!Array.isArray(dados) || dados.length === 0) {
         document.body.innerHTML = '<div class="alert alert-warning text-center mt-5">Nenhum dado disponível.</div>';
@@ -52,23 +51,23 @@ try {
         }]
         },
         options: {
-        responsive: true,
-        scales: {
-            y: {
-            beginAtZero: true,
-            ticks: {
-                callback: v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                    }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ctx.raw.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                    }
+                }
             }
-            }
-        },
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-            callbacks: {
-                label: ctx => ctx.raw.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-            }
-            }
-        }
         }
     });
 
@@ -111,3 +110,43 @@ try {
 }
 
 carregarDados();
+
+// Evento para o botão de atualização
+document.getElementById('btnAtualizar').addEventListener('click', async () => {
+    const caminho = document.getElementById('caminhoRede').value.trim();
+
+    if (!caminho) {
+        alert('Por favor, informe o caminho de rede.');
+        return;
+    }
+
+    try {
+        const resposta = await eel.salvar_caminho(caminho)(); // Chama o backend via Eel
+
+        if (resposta.status === "ok") {
+            console.log("Caminho salvo:", caminho);
+
+            carregarDados();
+        } else {
+            alert(" Erro: " + resposta.mensagem);
+        }
+    } catch (error) {
+        console.error("Erro ao enviar caminho:", error);
+        alert(" Erro ao enviar caminho para o backend.");
+    }
+});
+
+document.getElementById('btnPasta').addEventListener('click', async () => {
+    try {
+        const pasta = await eel.selecionar_diretorio()();
+        if (pasta) {
+            document.getElementById('caminhoRede').value = pasta;
+            console.log('Pasta selecionada:', pasta);
+        } else {
+            console.log('Nenhuma pasta selecionada.');
+        }
+    } catch (error) {
+        console.error('Erro ao selecionar diretório:', error);
+        alert('Erro ao abrir o seletor de diretório.');
+    }
+});

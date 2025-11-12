@@ -2,15 +2,44 @@ import pandas as pd
 import os
 import glob
 import re
+import json
 
-# Caminho base onde estão os .txt
-BASE_DIR = r"C:\Users\U33V\OneDrive - PETROBRAS\Desktop\Auto_CL\Fase 2 - Arquivos de Excel Reduzidos\TEMP"
-
-# Caminho para salvar o JSON (um nível acima da pasta backend)
+# Caminhos base
 DASHBOARD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 CAMINHO_JSON = os.path.join(DASHBOARD_DIR, "requests.json")
 
-# Colunas de interesse
+# Leitura dos diretórios do requests.json
+def obter_diretorios():
+    """Lê o arquivo requests.json e retorna uma lista de diretórios válidos."""
+    try:
+        if not os.path.exists(CAMINHO_JSON):
+            print(f"Arquivo {CAMINHO_JSON} não encontrado.")
+            return []
+
+        with open(CAMINHO_JSON, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+
+        # O JSON pode ser uma lista de objetos ou um único objeto
+        if isinstance(dados, dict):
+            caminhos = [dados.get("path")]
+        elif isinstance(dados, list):
+            caminhos = [d.get("path") for d in dados if "path" in d]
+        else:
+            caminhos = []
+
+        # Filtra apenas caminhos válidos
+        caminhos_validos = [c for c in caminhos if c and os.path.isdir(c)]
+
+        if not caminhos_validos:
+            print("Nenhum diretório válido encontrado em requests.json.")
+
+        return caminhos_validos
+
+    except Exception as e:
+        print(f"Erro ao ler requests.json: {e}")
+        return []
+
+# Configurações de colunas
 coluna_chave = "Def.projeto"
 colunas_valores = [
     "Valor total em reais",
@@ -21,49 +50,52 @@ colunas_valores = [
 
 dfs = []
 
-# Procura todos os .txt no diretório
-for arquivo in glob.glob(os.path.join(BASE_DIR, "*.txt")):
-    try:
-        # Detecta delimitador automaticamente
-        with open(arquivo, 'r', encoding='utf-8') as f:
-            primeira_linha = f.readline()
-        sep = ';' if ';' in primeira_linha else '\t'
+# Processamento dos diretórios
+for BASE_DIR in obter_diretorios():
+    print(f"\n Lendo arquivos do diretório: {BASE_DIR}")
 
-        df = pd.read_csv(arquivo, sep=sep, encoding='utf-8', dtype=str)
-        print(f" Lido: {os.path.basename(arquivo)} ({len(df)} linhas)")
+    for arquivo in glob.glob(os.path.join(BASE_DIR, "*.txt")):
+        try:
+            # Detecta delimitador automaticamente
+            with open(arquivo, 'r', encoding='utf-8') as f:
+                primeira_linha = f.readline()
+            sep = ';' if ';' in primeira_linha else '\t'
 
-        # Garante que a coluna-chave e colunas numéricas existam
-        colunas_existentes = [c for c in colunas_valores if c in df.columns]
-        if coluna_chave not in df.columns:
-            print(f" Coluna '{coluna_chave}' não encontrada em {arquivo}")
-            continue
+            df = pd.read_csv(arquivo, sep=sep, encoding='utf-8', dtype=str)
+            print(f" Lido: {os.path.basename(arquivo)} ({len(df)} linhas)")
 
-        # Função de limpeza de valores
-        def limpar_valor(v):
-            if pd.isna(v):
-                return 0.0
-            v = str(v).strip()
-            v = v.replace("R$", "").replace(" ", "")
-            v = v.replace(",", ".")
-            v = re.sub(r"[^0-9.\-]", "", v)
-            if v.count('.') > 1:
-                partes = v.split('.')
-                v = ''.join(partes[:-1]) + '.' + partes[-1]
-            try:
-                return float(v)
-            except:
-                return 0.0
+            # Garante que a coluna-chave e colunas numéricas existam
+            colunas_existentes = [c for c in colunas_valores if c in df.columns]
+            if coluna_chave not in df.columns:
+                print(f" Coluna '{coluna_chave}' não encontrada em {arquivo}")
+                continue
 
-        # Aplica a limpeza nas colunas numéricas
-        for c in colunas_existentes:
-            df[c] = df[c].apply(limpar_valor)
+            # Função de limpeza de valores
+            def limpar_valor(v):
+                if pd.isna(v):
+                    return 0.0
+                v = str(v).strip()
+                v = v.replace("R$", "").replace(" ", "")
+                v = v.replace(",", ".")
+                v = re.sub(r"[^0-9.\-]", "", v)
+                if v.count('.') > 1:
+                    partes = v.split('.')
+                    v = ''.join(partes[:-1]) + '.' + partes[-1]
+                try:
+                    return float(v)
+                except:
+                    return 0.0
 
-        dfs.append(df[[coluna_chave] + colunas_existentes])
+            # Aplica a limpeza nas colunas numéricas
+            for c in colunas_existentes:
+                df[c] = df[c].apply(limpar_valor)
 
-    except Exception as e:
-        print(f" Erro ao processar {arquivo}: {e}")
+            dfs.append(df[[coluna_chave] + colunas_existentes])
 
-# Junta e processa tudo
+        except Exception as e:
+            print(f" Erro ao processar {arquivo}: {e}")
+
+# Consolidação e exportação
 if not dfs:
     print(" Nenhum arquivo processado.")
 else:
@@ -93,4 +125,4 @@ else:
     # Exporta para JSON
     resultado.to_json(CAMINHO_JSON, orient="records", force_ascii=False, indent=2)
 
-    print(f"\n JSON salvo em: {CAMINHO_JSON}")
+    print(f"\n JSON atualizado com resultados em: {CAMINHO_JSON}")

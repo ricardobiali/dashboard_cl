@@ -17,7 +17,24 @@
 
 <body class="p-4">
     <div class="container-fluid">
-        <h2 class="mb-4 text-center">📊 Dashboard - Auto CL</h2>
+        <h2 class="mb-4 text-center">📊 Painel de conteúdo local</h2>
+
+        <!-- 🔹 Campo de caminho de rede e botão de atualização -->
+        <div class="row mb-4 justify-content-center">
+            <div class="col-md-8">
+                <div class="input-group">
+                    <button class="btn btn-outline-secondary" id="btnPasta" title="Selecionar pasta">
+                        📁
+                    </button>
+                    <input type="text" id="caminhoRede" class="form-control" 
+                        placeholder="Ex: C:\\Users...">
+                        <!-- Botão de seleção de pasta -->
+                    <button class="btn btn-primary" id="btnAtualizar">
+                        🔄 Atualizar
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <!-- 🔹 Tabela de Dados (agora vem primeiro) -->
         <div class="row mb-4">
@@ -61,6 +78,7 @@
     </div>
 
     <!-- Script externo -->
-    <script src="./script.js"></script>
+    <script type="text/javascript" src="/eel.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
