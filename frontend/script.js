@@ -20,10 +20,50 @@ try {
     const header = document.getElementById('tabela-header');
     const body = document.getElementById('tabela-body');
 
-    header.innerHTML = colunas.map(c => `<th>${c}</th>`).join('');
-    body.innerHTML = dados.map(linha =>
-        `<tr>${colunas.map(c => `<td>${linha[c]}</td>`).join('')}</tr>`
-    ).join('');
+    // Monta cabeçalho genérico
+    header.innerHTML = `
+        <th></th>
+        <th>Grupo</th>
+        <th>Def.projeto</th>
+        ${Object.keys(dados[0].total).map(c => `<th>${c}</th>`).join('')}
+    `;
+
+    // Monta corpo hierárquico
+    body.innerHTML = dados.map((grupo, i) => {
+        const totalCols = Object.keys(grupo.total)
+            .map(c => `<td>${grupo.total[c].toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>`)
+            .join('');
+
+        const rowsProjetos = grupo.itens.map(it =>
+            `<tr class="sub-${i}" style="display:none;">
+                <td></td>
+                <td></td>
+                <td>${it["Def.projeto"]}</td>
+                ${Object.keys(grupo.total).map(c => `<td>${it[c].toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>`).join('')}
+            </tr>`
+        ).join('');
+
+        return `
+            <tr class="grupo" data-idx="${i}">
+                <td class="toggle" style="cursor:pointer;">+</td>
+                <td>${grupo.grupo}</td>
+                <td><b>TOTAL</b></td>
+                ${totalCols}
+            </tr>
+            ${rowsProjetos}
+        `;
+    }).join('');
+
+    // Ativa o toggle (+)
+    document.querySelectorAll('.toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idx = btn.parentElement.getAttribute('data-idx');
+            const visiveis = document.querySelectorAll(`.sub-${idx}`);
+            const expandido = visiveis[0]?.style.display === '';
+            visiveis.forEach(tr => tr.style.display = expandido ? 'none' : '');
+            btn.textContent = expandido ? '+' : '−';
+        });
+    });
 
     // Dados para os gráficos
     const projetos = dados.map((d) => d["Def.projeto"]);

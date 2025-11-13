@@ -7,37 +7,8 @@ import json
 # Caminhos base
 DASHBOARD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 CAMINHO_JSON = os.path.join(DASHBOARD_DIR, "requests.json")
-
-# Leitura dos diretórios do requests.json
-def obter_diretorios():
-    """Lê o arquivo requests.json e retorna uma lista de diretórios válidos."""
-    try:
-        if not os.path.exists(CAMINHO_JSON):
-            print(f"Arquivo {CAMINHO_JSON} não encontrado.")
-            return []
-
-        with open(CAMINHO_JSON, "r", encoding="utf-8") as f:
-            dados = json.load(f)
-
-        # O JSON pode ser uma lista de objetos ou um único objeto
-        if isinstance(dados, dict):
-            caminhos = [dados.get("path")]
-        elif isinstance(dados, list):
-            caminhos = [d.get("path") for d in dados if "path" in d]
-        else:
-            caminhos = []
-
-        # Filtra apenas caminhos válidos
-        caminhos_validos = [c for c in caminhos if c and os.path.isdir(c)]
-
-        if not caminhos_validos:
-            print("Nenhum diretório válido encontrado em requests.json.")
-
-        return caminhos_validos
-
-    except Exception as e:
-        print(f"Erro ao ler requests.json: {e}")
-        return []
+BACKEND_DIR = os.path.abspath(os.path.dirname(__file__))
+CAMINHO_MAPEAMENTO = os.path.join(BACKEND_DIR, "RACCL_lista_projetos.csv")
 
 # Configurações de colunas
 coluna_chave = "Def.projeto"
@@ -48,81 +19,100 @@ colunas_valores = [
     "Estrangeiro $"
 ]
 
+# Função auxiliar: limpeza de valores monetários
+def limpar_valor(v):
+    if pd.isna(v):
+        return 0.0
+    v = str(v).strip().replace("R$", "").replace(" ", "").replace(",", ".")
+    v = re.sub(r"[^0-9.\-]", "", v)
+    if v.count('.') > 1:
+        partes = v.split('.')
+        v = ''.join(partes[:-1]) + '.' + partes[-1]
+    try:
+        return float(v)
+    except:
+        return 0.0
+
+# --- 1. Carrega mapeamento de projetos -> grupos ---
+mapeamento = {}
+if os.path.exists(CAMINHO_MAPEAMENTO):
+    try:
+        df_mapa = pd.read_csv(CAMINHO_MAPEAMENTO, sep=';', encoding='utf-8', dtype=str)
+        df_mapa.columns = [c.strip() for c in df_mapa.columns]
+        df_mapa = df_mapa.rename(columns={df_mapa.columns[0]: "Def.projeto", df_mapa.columns[1]: "Grupo"})
+        for _, row in df_mapa.iterrows():
+            mapeamento[row["Def.projeto"].strip()] = row["Grupo"].strip()
+        print(f"Mapeamento carregado: {len(mapeamento)} entradas")
+    except Exception as e:
+        print("Erro ao ler RACCL_lista_projetos.csv:", e)
+else:
+    print(" Arquivo RACCL_lista_projetos.csv não encontrado.")
+    df_mapa = pd.DataFrame(columns=["Def.projeto", "Grupo"])
+
+# --- 2. Lê requests.json para obter diretórios ---
+def obter_diretorios():
+    if not os.path.exists(CAMINHO_JSON):
+        return []
+    try:
+        with open(CAMINHO_JSON, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+        if isinstance(dados, dict):
+            caminhos = [dados.get("path")]
+        elif isinstance(dados, list):
+            caminhos = [d.get("path") for d in dados if "path" in d]
+        else:
+            caminhos = []
+        return [c for c in caminhos if c and os.path.isdir(c)]
+    except Exception as e:
+        print("Erro ao ler requests.json:", e)
+        return []
+
+# --- 3. Processa os arquivos TXT ---
 dfs = []
 
-# Processamento dos diretórios
 for BASE_DIR in obter_diretorios():
-    print(f"\n Lendo arquivos do diretório: {BASE_DIR}")
-
     for arquivo in glob.glob(os.path.join(BASE_DIR, "*.txt")):
         try:
-            # Detecta delimitador automaticamente
             with open(arquivo, 'r', encoding='utf-8') as f:
                 primeira_linha = f.readline()
             sep = ';' if ';' in primeira_linha else '\t'
 
             df = pd.read_csv(arquivo, sep=sep, encoding='utf-8', dtype=str)
-            print(f" Lido: {os.path.basename(arquivo)} ({len(df)} linhas)")
-
-            # Garante que a coluna-chave e colunas numéricas existam
             colunas_existentes = [c for c in colunas_valores if c in df.columns]
             if coluna_chave not in df.columns:
-                print(f" Coluna '{coluna_chave}' não encontrada em {arquivo}")
                 continue
 
-            # Função de limpeza de valores
-            def limpar_valor(v):
-                if pd.isna(v):
-                    return 0.0
-                v = str(v).strip()
-                v = v.replace("R$", "").replace(" ", "")
-                v = v.replace(",", ".")
-                v = re.sub(r"[^0-9.\-]", "", v)
-                if v.count('.') > 1:
-                    partes = v.split('.')
-                    v = ''.join(partes[:-1]) + '.' + partes[-1]
-                try:
-                    return float(v)
-                except:
-                    return 0.0
-
-            # Aplica a limpeza nas colunas numéricas
             for c in colunas_existentes:
                 df[c] = df[c].apply(limpar_valor)
 
             dfs.append(df[[coluna_chave] + colunas_existentes])
-
         except Exception as e:
-            print(f" Erro ao processar {arquivo}: {e}")
+            print("Erro ao processar", arquivo, ":", e)
 
-# Consolidação e exportação
 if not dfs:
-    print(" Nenhum arquivo processado.")
-else:
-    df_total = pd.concat(dfs, ignore_index=True)
+    print("Nenhum arquivo processado.")
+    exit()
 
-    # Agrupa e soma
-    resultado = df_total.groupby(coluna_chave, as_index=False)[colunas_valores].sum()
+# --- 4. Consolida dados individuais ---
+df_total = pd.concat(dfs, ignore_index=True)
+resultado = df_total.groupby(coluna_chave, as_index=False)[colunas_valores].sum()
 
-    # Calcula a nova coluna — razão entre valores locais
-    if "Valor cont local R$" in resultado.columns and "Val suj cont loc R$" in resultado.columns:
-        resultado["% CL"] = resultado.apply(
-            lambda row: row["Valor cont local R$"] / row["Val suj cont loc R$"]
-            if row["Val suj cont loc R$"] != 0 else 0,
-            axis=1
-        )
-    else:
-        print(" Colunas para cálculo da razão não encontradas.")
+# Adiciona coluna de grupo
+resultado["Grupo"] = resultado[coluna_chave].map(mapeamento).fillna("OUTROS")
 
-    # Formatação numérica no padrão PT-BR
-    def formatar_brasileiro(x):
-        if isinstance(x, (int, float)):
-            return f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        return x
+# --- 5. Agrupa por grupo ---
+grupos = []
+for grupo, df_g in resultado.groupby("Grupo"):
+    soma = df_g[colunas_valores].sum(numeric_only=True)
 
-    resultado = resultado.applymap(formatar_brasileiro)
+    grupos.append({
+        "grupo": grupo,
+        "total": {col: soma[col] for col in colunas_valores},
+        "itens": df_g.to_dict(orient="records")
+    })
 
-    # Exporta para JSON
-    resultado.to_json(CAMINHO_JSON, orient="records", force_ascii=False, indent=2)
+# --- 6. Salva em formato JSON hierárquico ---
+with open(CAMINHO_JSON, "w", encoding="utf-8") as f:
+    json.dump(grupos, f, ensure_ascii=False, indent=2)
 
-    print(f"\n JSON atualizado com resultados em: {CAMINHO_JSON}")
+print(f" JSON exportado com {len(grupos)} grupos em {CAMINHO_JSON}")
